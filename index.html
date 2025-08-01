@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signature Page</title>
+    <title>Signature Calendar</title>
     <style>
         body, html {
             margin: 0;
@@ -13,18 +13,23 @@
             font-family: Arial, sans-serif;
         }
         
-        .landing-page {
-            background-image: url('calendarsign.jpg');
-            background-size: cover;
-            background-position: center;
-            height: 100vh;
-            width: 100%;
+        .container {
             position: relative;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+        
+        .calendar-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: #f0f0f0;
         }
         
         .pen-icon {
             position: absolute;
-            right: 30px;
+            right: 20px;
             top: 50%;
             transform: translateY(-50%);
             font-size: 40px;
@@ -41,39 +46,14 @@
             z-index: 10;
         }
         
-        .signature-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 100;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .signature-container {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            width: 80%;
-            max-width: 500px;
-            text-align: center;
-        }
-        
-        canvas {
-            border: 1px solid #ccc;
-            margin: 10px 0;
-            width: 100%;
-            background: white;
-        }
-        
-        .signature-buttons {
+        .controls {
+            position: absolute;
+            right: 20px;
+            top: calc(50% + 50px);
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             gap: 10px;
+            z-index: 10;
         }
         
         button {
@@ -81,60 +61,61 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
         
-        .save-btn {
-            background: #4CAF50;
-            color: white;
+        #signatureCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            touch-action: none;
         }
         
-        .clear-btn {
-            background: #f44336;
-            color: white;
+        .drawing-active {
+            pointer-events: auto;
         }
         
-        .close-btn {
-            background: #2196F3;
-            color: white;
+        .drawing-inactive {
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div class="landing-page">
+    <div class="container">
+        <img src="calendarsign.jpg" class="calendar-image" alt="Calendar">
+        <canvas id="signatureCanvas" class="drawing-inactive"></canvas>
+        
         <div class="pen-icon" id="penIcon">✏️</div>
-    </div>
-    
-    <div class="signature-modal" id="signatureModal">
-        <div class="signature-container">
-            <h2>Sign Here</h2>
-            <canvas id="signatureCanvas"></canvas>
-            <div class="signature-buttons">
-                <button class="save-btn" id="saveBtn">Save</button>
-                <button class="clear-btn" id="clearBtn">Clear</button>
-                <button class="close-btn" id="closeBtn">Close</button>
-            </div>
+        
+        <div class="controls" id="controls" style="display: none;">
+            <button id="clearBtn">Clear</button>
+            <button id="saveBtn">Save</button>
+            <button id="doneBtn">Done</button>
         </div>
     </div>
 
     <script>
         // Get elements
         const penIcon = document.getElementById('penIcon');
-        const signatureModal = document.getElementById('signatureModal');
         const signatureCanvas = document.getElementById('signatureCanvas');
-        const saveBtn = document.getElementById('saveBtn');
         const clearBtn = document.getElementById('clearBtn');
-        const closeBtn = document.getElementById('closeBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const doneBtn = document.getElementById('doneBtn');
+        const controls = document.getElementById('controls');
         
-        // Set canvas size
+        // Set canvas size to match image
         function resizeCanvas() {
-            const ratio = Math.max(window.devicePixelRatio || 1, 1);
-            signatureCanvas.width = signatureCanvas.offsetWidth * ratio;
-            signatureCanvas.height = signatureCanvas.offsetHeight * ratio;
-            signatureCanvas.getContext('2d').scale(ratio, ratio);
+            const img = document.querySelector('.calendar-image');
+            signatureCanvas.width = img.offsetWidth;
+            signatureCanvas.height = img.offsetHeight;
         }
         
         // Initialize canvas
-        resizeCanvas();
+        window.addEventListener('load', resizeCanvas);
         window.addEventListener('resize', resizeCanvas);
         
         // Drawing variables
@@ -177,20 +158,26 @@
         // Touch support for mobile devices
         signatureCanvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
+            const rect = signatureCanvas.getBoundingClientRect();
             const touch = e.touches[0];
             const mouseEvent = new MouseEvent('mousedown', {
                 clientX: touch.clientX,
-                clientY: touch.clientY
+                clientY: touch.clientY,
+                offsetX: touch.clientX - rect.left,
+                offsetY: touch.clientY - rect.top
             });
             signatureCanvas.dispatchEvent(mouseEvent);
         });
         
         signatureCanvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
+            const rect = signatureCanvas.getBoundingClientRect();
             const touch = e.touches[0];
             const mouseEvent = new MouseEvent('mousemove', {
                 clientX: touch.clientX,
-                clientY: touch.clientY
+                clientY: touch.clientY,
+                offsetX: touch.clientX - rect.left,
+                offsetY: touch.clientY - rect.top
             });
             signatureCanvas.dispatchEvent(mouseEvent);
         });
@@ -201,23 +188,31 @@
             signatureCanvas.dispatchEvent(mouseEvent);
         });
         
-        // Button event listeners
+        // Toggle drawing mode
         penIcon.addEventListener('click', () => {
-            signatureModal.style.display = 'flex';
+            signatureCanvas.classList.toggle('drawing-active');
+            signatureCanvas.classList.toggle('drawing-inactive');
+            controls.style.display = controls.style.display === 'none' ? 'flex' : 'none';
         });
         
-        closeBtn.addEventListener('click', () => {
-            signatureModal.style.display = 'none';
-        });
-        
+        // Button event listeners
         clearBtn.addEventListener('click', () => {
             ctx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
         });
         
         saveBtn.addEventListener('click', () => {
-            // Here you can save the signature if needed
-            alert('Signature saved! (This is just a demo)');
-            signatureModal.style.display = 'none';
+            // Convert canvas to image and download
+            const dataURL = signatureCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'signed-calendar.png';
+            link.href = dataURL;
+            link.click();
+        });
+        
+        doneBtn.addEventListener('click', () => {
+            signatureCanvas.classList.remove('drawing-active');
+            signatureCanvas.classList.add('drawing-inactive');
+            controls.style.display = 'none';
         });
     </script>
 </body>
